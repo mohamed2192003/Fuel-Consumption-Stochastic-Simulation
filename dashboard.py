@@ -8,9 +8,10 @@ Run: streamlit run dashboard.py
 
 import streamlit as st
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 
-from simulation import load_data, poisson_simulation, markov_simulation, STATES
+from simulation import load_data, poisson_simulation, markov_simulation, STATES, TRANSITION_MATRIX
 
 # ─── PAGE CONFIG ──────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -49,7 +50,52 @@ st.pyplot(fig)
 
 st.markdown("---")
 
-# ─── SECTION 3: SIMULATION CONTROLS ──────────────────────────────────────────
+# ─── SECTION 3: TRANSITION MATRIX ───────────────────────────────────────────
+st.header("🔄 Markov Chain — Transition Matrix")
+st.write(
+    "The table below shows the probability of moving from one fuel state to another "
+    "in a single step. Each **row** represents the *current* state and each **column** "
+    "represents the *next* state — row probabilities sum to 1."
+)
+
+state_labels = ["Full Tank", "Medium Fuel", "Low Fuel"]
+
+
+
+# ── Heatmap ──
+fig_tm, ax_tm = plt.subplots(figsize=(5, 3))
+im = ax_tm.imshow(TRANSITION_MATRIX, cmap="YlOrRd", vmin=0, vmax=1)
+plt.colorbar(im, ax=ax_tm, label="Probability")
+ax_tm.set_xticks(range(3))
+ax_tm.set_yticks(range(3))
+ax_tm.set_xticklabels(state_labels, fontsize=9)
+ax_tm.set_yticklabels(state_labels, fontsize=9)
+ax_tm.set_xlabel("Next State", fontsize=9)
+ax_tm.set_ylabel("Current State", fontsize=9)
+ax_tm.set_title("Transition Probability Heatmap", fontsize=10)
+for i in range(3):
+    for j in range(3):
+        ax_tm.text(j, i, f"{TRANSITION_MATRIX[i, j]:.1f}",
+                   ha="center", va="center",
+                   color="black" if TRANSITION_MATRIX[i, j] < 0.6 else "white",
+                   fontsize=11, fontweight="bold")
+plt.tight_layout()
+st.pyplot(fig_tm)
+
+# ── Numeric table ──
+tm_df = pd.DataFrame(
+    TRANSITION_MATRIX,
+    index=[f"From: {s}" for s in state_labels],
+    columns=[f"To: {s}" for s in state_labels],
+)
+st.dataframe(
+    tm_df.style.format("{:.1%}").background_gradient(cmap="YlOrRd", vmin=0, vmax=1),
+    use_container_width=True,
+)
+
+st.markdown("---")
+
+# ─── SECTION 4: SIMULATION CONTROLS ──────────────────────────────────────────
 st.header("🎮 Run Simulation")
 
 col_a, col_b = st.columns(2)
