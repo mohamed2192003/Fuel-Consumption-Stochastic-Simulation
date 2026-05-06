@@ -100,31 +100,31 @@ st.write("Nodes are fuel states; arrows show possible transitions. "
 
 import matplotlib.patches as mpatches
 from matplotlib.patches import FancyArrowPatch, Circle
-import matplotlib.patheffects as pe
 
-# Node positions (triangle layout)
+# Node positions — triangle layout, inset so self-loops don't clip
 node_pos = {
-    0: np.array([0.5, 0.85]),   # Full Tank  – top centre
-    1: np.array([0.15, 0.18]),  # Medium Fuel – bottom left
-    2: np.array([0.85, 0.18]),  # Low Fuel   – bottom right
+    0: np.array([0.50, 0.80]),   # Full Tank   – top centre
+    1: np.array([0.18, 0.22]),   # Medium Fuel – bottom left
+    2: np.array([0.82, 0.22]),   # Low Fuel    – bottom right
 }
-node_colors  = {0: "#2ecc71", 1: "#f39c12", 2: "#e74c3c"}
-node_labels  = {0: "Full Tank", 1: "Medium\nFuel", 2: "Low\nFuel"}
-NODE_R = 0.10   # node radius in axes-fraction units
+node_colors = {0: "#2ecc71", 1: "#f39c12", 2: "#e74c3c"}
+node_labels = {0: "Full Tank", 1: "Medium\nFuel", 2: "Low\nFuel"}
+NODE_R = 0.09   # node radius in axes units
 
-fig_diag, ax_diag = plt.subplots(figsize=(6, 5))
-ax_diag.set_xlim(0, 1)
-ax_diag.set_ylim(0, 1)
+fig_diag, ax_diag = plt.subplots(figsize=(6, 5.5))
+# Expanded limits so all nodes and self-loop arcs fit without clipping
+ax_diag.set_xlim(-0.10, 1.10)
+ax_diag.set_ylim(-0.12, 1.12)
 ax_diag.axis("off")
 ax_diag.set_facecolor("#f8f9fa")
 fig_diag.patch.set_facecolor("#f8f9fa")
 
-# ── Helper: angle from node i centre to node j centre ──
-def angle_between(p1, p2):
+def _angle(p1, p2):
     d = p2 - p1
     return np.degrees(np.arctan2(d[1], d[0]))
 
-# ── Draw arrows (skip self-loops in this pass) ──
+CENTRE = np.array([0.50, 0.42])   # visual centroid of the triangle
+
 for i in range(3):
     for j in range(3):
         prob = TRANSITION_MATRIX[i, j]
@@ -134,80 +134,68 @@ for i in range(3):
         pi, pj = node_pos[i], node_pos[j]
 
         if i == j:
-            # Self-loop: small arc above/below the node
-            cx, cy = pi
-            loop_r = 0.09
-            # offset the loop outward from the triangle centre (0.5, 0.5)
-            centre = np.array([0.5, 0.5])
-            direction = (pi - centre)
+            # Self-loop: arc positioned outward from the triangle centroid
+            direction = pi - CENTRE
             direction = direction / np.linalg.norm(direction)
-            lx = cx + direction[0] * (NODE_R + loop_r * 0.9)
-            ly = cy + direction[1] * (NODE_R + loop_r * 0.9)
+            loop_r = 0.085
+            lx = pi[0] + direction[0] * (NODE_R + loop_r * 0.85)
+            ly = pi[1] + direction[1] * (NODE_R + loop_r * 0.85)
             loop = mpatches.Arc(
                 (lx, ly), loop_r * 2, loop_r * 2,
-                angle=angle_between(pi, np.array([lx, ly])) + 90,
-                theta1=30, theta2=330,
-                color="gray", lw=max(1.0, prob * 4),
-                zorder=2, transform=ax_diag.transAxes,
+                angle=_angle(pi, np.array([lx, ly])) + 90,
+                theta1=40, theta2=320,
+                color="#888888", lw=max(1.2, prob * 4),
+                zorder=2,
             )
             ax_diag.add_patch(loop)
-            # label near the loop
-            label_pos = np.array([lx, ly]) + direction * loop_r * 1.1
+            lbl_pos = np.array([lx, ly]) + direction * (loop_r * 1.35)
             ax_diag.text(
-                label_pos[0], label_pos[1], f"{prob:.1f}",
-                ha="center", va="center", fontsize=8, color="#555555",
-                fontweight="bold", transform=ax_diag.transAxes, zorder=5,
+                lbl_pos[0], lbl_pos[1], f"{prob:.1f}",
+                ha="center", va="center", fontsize=8.5,
+                fontweight="bold", color="#555555", zorder=5,
             )
             continue
 
-        # Determine edge direction (offset from centre of node boundary)
-        theta_ij = np.radians(angle_between(pi, pj))
-        theta_ji = np.radians(angle_between(pj, pi))
-
-        # Curve offset so opposing arrows don't overlap (perpendicular nudge)
-        perp = np.array([-np.sin(theta_ij), np.cos(theta_ij)]) * 0.06
+        # Inter-node arrow
+        theta_ij = np.radians(_angle(pi, pj))
+        theta_ji = np.radians(_angle(pj, pi))
+        perp = np.array([-np.sin(theta_ij), np.cos(theta_ij)]) * 0.055
 
         src = pi + np.array([np.cos(theta_ij), np.sin(theta_ij)]) * NODE_R + perp
         dst = pj + np.array([np.cos(theta_ji), np.sin(theta_ji)]) * NODE_R + perp
 
-        lw    = 1.0 + prob * 5
-        alpha = 0.35 + prob * 0.65
+        lw    = 1.2 + prob * 5
+        alpha = 0.40 + prob * 0.60
         color = node_colors[i]
 
         arrow = FancyArrowPatch(
             posA=src, posB=dst,
-            arrowstyle=mpatches.ArrowStyle.CurveB(head_length=0.018, head_width=0.010),
-            connectionstyle="arc3,rad=0.18",
+            arrowstyle=mpatches.ArrowStyle.CurveB(head_length=0.016, head_width=0.009),
+            connectionstyle="arc3,rad=0.20",
             color=color, lw=lw, alpha=alpha, zorder=3,
-            transform=ax_diag.transAxes,
         )
         ax_diag.add_patch(arrow)
 
-        # Label: midpoint of the bezier + small perpendicular offset
-        mid = (src + dst) / 2 + perp * 1.4
+        mid = (src + dst) / 2 + perp * 1.5
         ax_diag.text(
             mid[0], mid[1], f"{prob:.1f}",
             ha="center", va="center", fontsize=8.5,
             fontweight="bold", color=color, alpha=min(alpha + 0.2, 1.0),
-            transform=ax_diag.transAxes, zorder=6,
+            zorder=6,
         )
 
-# ── Draw nodes on top ──
-for idx, (pos, col, lbl) in enumerate(
-    zip(node_pos.values(), node_colors.values(), node_labels.values())
-):
-    circ = Circle(pos, NODE_R, color=col, zorder=4,
-                  transform=ax_diag.transAxes, ec="white", lw=2.5)
+# Draw nodes last (on top)
+for pos, col, lbl in zip(node_pos.values(), node_colors.values(), node_labels.values()):
+    circ = Circle(pos, NODE_R, color=col, zorder=4, ec="white", lw=2.5)
     ax_diag.add_patch(circ)
     ax_diag.text(
         pos[0], pos[1], lbl,
         ha="center", va="center", fontsize=9, fontweight="bold",
-        color="white", zorder=7, transform=ax_diag.transAxes,
-        linespacing=1.3,
+        color="white", zorder=7, linespacing=1.3,
     )
 
-ax_diag.set_title("Markov Chain — State Transition Diagram", fontsize=11, pad=8)
-plt.tight_layout()
+ax_diag.set_title("Markov Chain — State Transition Diagram", fontsize=11, pad=10)
+fig_diag.subplots_adjust(left=0.05, right=0.95, top=0.92, bottom=0.05)
 st.pyplot(fig_diag)
 
 st.markdown("---")
